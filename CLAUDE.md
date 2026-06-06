@@ -51,9 +51,10 @@ All on the `ip_bp` blueprint in `iptools.py`.
 
 ## Deploy
 
-On artemis:
+Repo lives at the deploy path on artemis (like qrcodegen on opscore). To deploy:
 ```bash
 cd /opt/docker/ip.pftx.us
+git pull
 docker compose up -d --build
 ```
 Container port 8000 → host **8087**. Published with:
@@ -68,5 +69,5 @@ Container port 8000 → host **8087**. Published with:
   changes (or `--force-recreate` for env changes).
 - Cloudflare can cache responses — if the public URL looks stale but the
   container is right (`curl localhost:8087/...`), suspect edge cache.
-- Source of truth: `~/Projects/Artemis/stacks/ip.pftx.us/` on the workstation,
-  deployed to `/opt/docker/ip.pftx.us/` on artemis.
+- Source of truth: GitHub `cmivxx/iptoolbox` → checked out at
+  `/opt/docker/ip.pftx.us/` on artemis. Branch `master`.
