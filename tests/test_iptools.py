@@ -93,3 +93,31 @@ def test_security_headers(client):
 def test_healthz(client):
     r = client.get("/healthz")
     assert r.status_code == 200 and r.data.decode().strip() == "ok"
+
+
+# ── suggestion form ──────────────────────────────────────────────────────────
+
+
+def test_suggest_valid(client, tmp_path, monkeypatch):
+    path = tmp_path / "suggestions.jsonl"
+    monkeypatch.setattr(iptools, "SUGGESTIONS_PATH", str(path))
+    r = client.post("/api/suggest", json={"email": "a@b.com", "description": "A WHOIS history tool"})
+    j = r.get_json()
+    assert j["success"] is True
+    assert path.read_text().strip()  # a record was written
+    assert "A WHOIS history tool" in path.read_text()
+
+
+def test_suggest_bad_email(client):
+    j = client.post("/api/suggest", json={"email": "not-an-email", "description": "x"}).get_json()
+    assert j["success"] is False
+
+
+def test_suggest_missing_description(client):
+    j = client.post("/api/suggest", json={"email": "a@b.com", "description": ""}).get_json()
+    assert j["success"] is False
+
+
+def test_suggest_description_too_long(client):
+    j = client.post("/api/suggest", json={"email": "a@b.com", "description": "x" * 1001}).get_json()
+    assert j["success"] is False

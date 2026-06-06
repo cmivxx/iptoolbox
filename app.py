@@ -16,13 +16,15 @@ def _rate_key():
 
 def create_app():
     app = Flask(__name__)
-    Limiter(
+    limiter = Limiter(
         key_func=_rate_key,
         default_limits=["120 per minute"],
         storage_uri="memory://",
         app=app,
     )
     app.register_blueprint(ip_bp)
+    # Tighter limit on the suggestion form to curb spam.
+    limiter.limit("5 per hour")(app.view_functions["ip_bp.api_suggest"])
     return app
 
 

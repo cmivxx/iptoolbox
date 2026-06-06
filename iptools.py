@@ -5,7 +5,10 @@ allowlist of public resolvers, mail-auth (SPF/DKIM/DMARC) parsing, MX analysis,
 RDAP, and pure-compute subnet math. No tool takes a user-supplied outbound
 destination, so there is no SSRF surface into the LAN.
 """
+import datetime
 import ipaddress
+import json
+import os
 import re
 
 import dns.resolver
@@ -30,6 +33,10 @@ DNS_TIMEOUT = 3.0
 DNS_LIFETIME = 5.0
 RDAP_TIMEOUT = 8.0
 MAX_NAME_LEN = 253
+
+SUGGESTIONS_PATH = os.environ.get("SUGGESTIONS_PATH", "/app/data/suggestions.jsonl")
+MAX_SUGGEST_DESC = 1000
+_EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
 _HOSTNAME_RE = re.compile(
     r"^(?=.{1,253}$)(?!-)[A-Za-z0-9-]{1,63}(?<!-)"
@@ -396,6 +403,38 @@ def api_subnet():
         else:
             data["usable_hosts"] = hosts
     return _ok(**data)
+
+
+# ── Routes: tool suggestions ─────────────────────────────────────────────────
+
+
+@ip_bp.route("/api/suggest", methods=["POST"])
+def api_suggest():
+    data = request.get_json(silent=True) or request.form
+    email = (data.get("email") or "").strip()
+    desc = (data.get("description") or "").strip()
+    if not email or len(email) > 254 or not _EMAIL_RE.match(email):
+        return _err("Please provide a valid email address")
+    if not desc:
+        return _err("Please describe the tool you'd like to see")
+    if len(desc) > MAX_SUGGEST_DESC:
+        return _err(f"Description too long (max {MAX_SUGGEST_DESC} characters)")
+    record = {
+        "ts": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+        "ip": _client_ip(),
+        "email": email,
+        "description": desc,
+    }
+    # Log it (flows to central Loki via Fluent Bit) ...
+    print("tool_suggestion " + json.dumps(record), flush=True)
+    # ... and persist to the mounted data volume.
+    try:
+        os.makedirs(os.path.dirname(SUGGESTIONS_PATH), exist_ok=True)
+        with open(SUGGESTIONS_PATH, "a", encoding="utf-8") as f:
+            f.write(json.dumps(record) + "\n")
+    except OSError:
+        pass  # already logged above; don't fail the request on storage error
+    return _ok(message="Thanks! Your suggestion was received.")
 
 
 # ── UI + health ──────────────────────────────────────────────────────────────

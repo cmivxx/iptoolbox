@@ -45,9 +45,10 @@
   .card h2 { margin: 0 0 4px; font-size: 16px; }
   .card .desc { color: var(--muted); font-size: 13px; margin: 0 0 12px; }
   .row { display: flex; gap: 8px; margin-bottom: 8px; flex-wrap: wrap; }
-  input, select, button { font: inherit; padding: 8px 10px; border-radius: 6px;
+  input, select, button, textarea { font: inherit; padding: 8px 10px; border-radius: 6px;
     border: 1px solid var(--border); background: #0d1117; color: var(--text); }
   input { flex: 1; min-width: 120px; }
+  textarea { flex: 1 1 100%; width: 100%; resize: vertical; min-height: 76px; }
   button { background: var(--accent); color: #06101f; border: none; cursor: pointer; font-weight: 600; }
   button:hover { filter: brightness(1.1); }
   pre { background: #010409; border: 1px solid var(--border); border-radius: 6px;
@@ -200,6 +201,42 @@ async function loadMyIp() {
   }
 }
 
+function buildSuggestionCard() {
+  const root = document.getElementById("cards");
+  const el = document.createElement("section");
+  el.className = "card";
+  el.innerHTML = `<h2>Suggest a Tool</h2>
+    <p class="desc">Want a tool that isn't here yet? Tell us what would be useful and we'll consider adding it.</p>
+    <div class="row"><input data-f="email" type="email" placeholder="you@example.com"></div>
+    <div class="row"><textarea data-f="description" placeholder="Describe the tool you'd like to see…"></textarea></div>
+    <div class="row"><button>Submit suggestion</button></div>
+    <pre style="display:none"></pre>`;
+  const out = el.querySelector("pre");
+  const get = name => el.querySelector(`[data-f="${name}"]`).value.trim();
+  el.querySelector("button").addEventListener("click", async () => {
+    out.style.display = "block";
+    out.textContent = "Sending…";
+    try {
+      const r = await fetch("/api/suggest", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: get("email"), description: get("description") }),
+      });
+      const j = await r.json();
+      if (j.success) {
+        out.textContent = j.message || "Thanks! Your suggestion was received.";
+        el.querySelector('[data-f="email"]').value = "";
+        el.querySelector('[data-f="description"]').value = "";
+      } else {
+        out.textContent = "Error: " + (j.error || "could not submit");
+      }
+    } catch (e) {
+      out.textContent = "Request failed: " + e;
+    }
+  });
+  root.appendChild(el);
+}
+
 // Show the marketing image only if static/hero.png actually loads; otherwise
 // keep the placeholder.
 (function () {
@@ -209,6 +246,7 @@ async function loadMyIp() {
 })();
 
 build();
+buildSuggestionCard();
 loadMyIp();
 </script>
 </body>
