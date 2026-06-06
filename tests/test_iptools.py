@@ -121,3 +121,29 @@ def test_suggest_missing_description(client):
 def test_suggest_description_too_long(client):
     j = client.post("/api/suggest", json={"email": "a@b.com", "description": "x" * 1001}).get_json()
     assert j["success"] is False
+
+
+def test_notify_discord_skipped_when_unset(monkeypatch):
+    monkeypatch.setattr(iptools, "DISCORD_WEBHOOK_URL", None)
+    assert iptools._notify_discord({"email": "a@b.com", "ip": "1.2.3.4",
+                                    "description": "x", "ts": "now"}) == "skipped"
+
+
+def test_notify_discord_posts_when_set(monkeypatch):
+    calls = {}
+
+    class FakeResp:
+        status_code = 204
+
+    def fake_post(url, json=None, timeout=None):
+        calls["url"] = url
+        calls["json"] = json
+        return FakeResp()
+
+    monkeypatch.setattr(iptools, "DISCORD_WEBHOOK_URL", "https://discord.test/hook")
+    monkeypatch.setattr(iptools.requests, "post", fake_post)
+    status = iptools._notify_discord({"email": "a@b.com", "ip": "1.2.3.4",
+                                      "description": "want X", "ts": "now"})
+    assert status == "204"
+    assert calls["url"] == "https://discord.test/hook"
+    assert calls["json"]["embeds"][0]["fields"][0]["value"] == "a@b.com"

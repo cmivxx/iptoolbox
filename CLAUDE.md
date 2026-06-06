@@ -71,3 +71,10 @@ Container port 8000 → host **8087**. Published with:
   container is right (`curl localhost:8087/...`), suspect edge cache.
 - Source of truth: GitHub `cmivxx/iptoolbox` → checked out at
   `/opt/docker/ip.pftx.us/` on artemis. Branch `master`.
+
+## Secrets (.env)
+
+`docker-compose.yml` loads `.env` (gitignored; template in `.env.example`). Keys:
+- `DISCORD_WEBHOOK_URL` — tool-suggestion submissions (`POST /api/suggest`) post an
+  embed to this webhook (same one the opscore logStack alerts use). If unset,
+  suggestions still persist + log; only the Discord ping is skipped.

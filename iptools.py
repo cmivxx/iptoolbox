@@ -38,6 +38,8 @@ SUGGESTIONS_PATH = os.environ.get("SUGGESTIONS_PATH", "/app/data/suggestions.jso
 MAX_SUGGEST_DESC = 1000
 _EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
+DISCORD_WEBHOOK_URL = os.environ.get("DISCORD_WEBHOOK_URL")
+
 _HOSTNAME_RE = re.compile(
     r"^(?=.{1,253}$)(?!-)[A-Za-z0-9-]{1,63}(?<!-)"
     r"(\.(?!-)[A-Za-z0-9-]{1,63}(?<!-))*\.?$"
@@ -408,6 +410,30 @@ def api_subnet():
 # ── Routes: tool suggestions ─────────────────────────────────────────────────
 
 
+def _notify_discord(record):
+    """Best-effort Discord webhook ping. Returns a short status for logging."""
+    if not DISCORD_WEBHOOK_URL:
+        return "skipped"
+    payload = {
+        "username": "IP & DNS Toolbox",
+        "embeds": [{
+            "title": "New tool suggestion",
+            "color": 5809919,  # #58a6ff
+            "fields": [
+                {"name": "Email", "value": record["email"][:1024], "inline": True},
+                {"name": "From IP", "value": record["ip"][:1024], "inline": True},
+                {"name": "Suggestion", "value": record["description"][:1024], "inline": False},
+            ],
+            "timestamp": record["ts"],
+        }],
+    }
+    try:
+        r = requests.post(DISCORD_WEBHOOK_URL, json=payload, timeout=4)
+        return str(r.status_code)
+    except requests.RequestException:
+        return "error"
+
+
 @ip_bp.route("/api/suggest", methods=["POST"])
 def api_suggest():
     data = request.get_json(silent=True) or request.form
@@ -425,9 +451,10 @@ def api_suggest():
         "email": email,
         "description": desc,
     }
-    # Log it (flows to central Loki via Fluent Bit) ...
-    print("tool_suggestion " + json.dumps(record), flush=True)
-    # ... and persist to the mounted data volume.
+    # Notify Discord (best-effort), then log (flows to central Loki via Fluent Bit).
+    discord_status = _notify_discord(record)
+    print("tool_suggestion " + json.dumps({**record, "discord": discord_status}), flush=True)
+    # Persist to the mounted data volume.
     try:
         os.makedirs(os.path.dirname(SUGGESTIONS_PATH), exist_ok=True)
         with open(SUGGESTIONS_PATH, "a", encoding="utf-8") as f:

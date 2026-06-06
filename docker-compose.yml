@@ -7,6 +7,8 @@ services:
       - "8087:8000"
     environment:
       - FLASK_ENV=production
+    env_file:
+      - .env
     volumes:
       - suggestions:/app/data
 
