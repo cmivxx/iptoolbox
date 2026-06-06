@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>IP &amp; DNS Toolbox</title>
+<style>
+  :root {
+    --bg: #0d1117; --panel: #161b22; --border: #30363d;
+    --text: #c9d1d9; --muted: #8b949e; --accent: #58a6ff; --ok: #3fb950; --err: #f85149;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+    font: 15px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+  header { padding: 28px 20px 8px; max-width: 1100px; margin: 0 auto; }
+  h1 { margin: 0 0 4px; font-size: 24px; }
+  header p { margin: 0; color: var(--muted); }
+  .your-ip { margin-top: 14px; padding: 12px 16px; background: var(--panel);
+    border: 1px solid var(--border); border-radius: 8px; display: flex;
+    align-items: center; gap: 10px; flex-wrap: wrap; }
+  .your-ip code { font-size: 18px; color: var(--accent); }
+  main { max-width: 1100px; margin: 0 auto; padding: 16px 20px 60px;
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(330px, 1fr)); gap: 16px; }
+  .card { background: var(--panel); border: 1px solid var(--border);
+    border-radius: 8px; padding: 16px; }
+  .card h2 { margin: 0 0 4px; font-size: 16px; }
+  .card .desc { color: var(--muted); font-size: 13px; margin: 0 0 12px; }
+  .row { display: flex; gap: 8px; margin-bottom: 8px; flex-wrap: wrap; }
+  input, select, button { font: inherit; padding: 8px 10px; border-radius: 6px;
+    border: 1px solid var(--border); background: #0d1117; color: var(--text); }
+  input { flex: 1; min-width: 120px; }
+  button { background: var(--accent); color: #06101f; border: none; cursor: pointer; font-weight: 600; }
+  button:hover { filter: brightness(1.1); }
+  pre { background: #010409; border: 1px solid var(--border); border-radius: 6px;
+    padding: 12px; overflow: auto; max-height: 320px; font-size: 12.5px;
+    white-space: pre-wrap; word-break: break-word; margin: 8px 0 0; }
+  .hint { color: var(--muted); font-size: 12px; }
+  a { color: var(--accent); }
+  footer { max-width: 1100px; margin: 0 auto; padding: 0 20px 40px; color: var(--muted); font-size: 13px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>IP &amp; DNS Toolbox</h1>
+  <p>Network diagnostics — IP, DNS, and mail-auth tools.</p>
+  <div class="your-ip">
+    <span class="hint">Your public IP:</span>
+    <code id="myip">…</code>
+    <span class="hint" id="myip-extra"></span>
+    <span class="hint" style="margin-left:auto">Script use: <code>curl https://ip.pftx.us/plain</code></span>
+  </div>
+</header>
+
+<main id="cards"></main>
+
+<footer>
+  All lookups are read-only against public resolvers (Cloudflare / Google / Quad9).
+  JSON API available on every <code>/api/*</code> route.
+</footer>
+
+<script>
+const RECORD_TYPES = ["A","AAAA","CNAME","MX","TXT","NS","SOA","CAA","SRV"];
+
+async function call(url, outEl) {
+  outEl.textContent = "Loading…";
+  try {
+    const r = await fetch(url);
+    const j = await r.json();
+    outEl.textContent = JSON.stringify(j, null, 2);
+  } catch (e) {
+    outEl.textContent = "Request failed: " + e;
+  }
+}
+
+const cards = [
+  { title: "DNS Lookup", desc: "Records for a domain via a chosen public resolver.",
+    fields: [{name:"name", ph:"example.com"}],
+    extra: `<select id="dns-type">${RECORD_TYPES.map(t=>`<option>${t}</option>`).join("")}</select>
+            <select id="dns-resolver"><option value="cloudflare">Cloudflare</option><option value="google">Google</option><option value="quad9">Quad9</option></select>`,
+    run: (g,out)=>call(`/api/dns?name=${enc(g("name"))}&type=${enc(val("dns-type"))}&resolver=${enc(val("dns-resolver"))}`, out) },
+
+  { title: "DNS Propagation", desc: "Compare the same record across all resolvers.",
+    fields: [{name:"name", ph:"example.com"}],
+    extra: `<select id="prop-type">${RECORD_TYPES.map(t=>`<option>${t}</option>`).join("")}</select>`,
+    run: (g,out)=>call(`/api/dns/propagation?name=${enc(g("name"))}&type=${enc(val("prop-type"))}`, out) },
+
+  { title: "Reverse DNS (PTR)", desc: "Resolve an IP back to a hostname.",
+    fields: [{name:"ip", ph:"8.8.8.8"}],
+    run: (g,out)=>call(`/api/dns/reverse?ip=${enc(g("ip"))}`, out) },
+
+  { title: "SPF Check", desc: "Validate SPF against RFC 7208 (10-lookup limit, qualifiers).",
+    fields: [{name:"domain", ph:"example.com"}],
+    run: (g,out)=>call(`/api/mail/spf?domain=${enc(g("domain"))}`, out) },
+
+  { title: "DMARC Check", desc: "Parse the _dmarc policy record.",
+    fields: [{name:"domain", ph:"example.com"}],
+    run: (g,out)=>call(`/api/mail/dmarc?domain=${enc(g("domain"))}`, out) },
+
+  { title: "DKIM Check", desc: "Look up a DKIM key by selector.",
+    fields: [{name:"domain", ph:"example.com"},{name:"selector", ph:"google"}],
+    run: (g,out)=>call(`/api/mail/dkim?domain=${enc(g("domain"))}&selector=${enc(g("selector"))}`, out) },
+
+  { title: "MX Analyzer", desc: "MX records by priority + address resolution.",
+    fields: [{name:"domain", ph:"example.com"}],
+    run: (g,out)=>call(`/api/mail/mx?domain=${enc(g("domain"))}`, out) },
+
+  { title: "WHOIS / RDAP", desc: "Registration data for a domain or IP.",
+    fields: [{name:"query", ph:"example.com or 8.8.8.8"}],
+    run: (g,out)=>call(`/api/whois?query=${enc(g("query"))}`, out) },
+
+  { title: "Subnet Calculator", desc: "CIDR math — network, broadcast, host range.",
+    fields: [{name:"cidr", ph:"192.168.1.0/24"}],
+    run: (g,out)=>call(`/api/subnet?cidr=${enc(g("cidr"))}`, out) },
+];
+
+const enc = encodeURIComponent;
+const val = id => document.getElementById(id).value;
+
+function build() {
+  const root = document.getElementById("cards");
+  for (const c of cards) {
+    const el = document.createElement("section");
+    el.className = "card";
+    const inputs = c.fields.map(f => `<input data-f="${f.name}" placeholder="${f.ph}">`).join("");
+    el.innerHTML = `<h2>${c.title}</h2><p class="desc">${c.desc}</p>
+      <div class="row">${inputs}${c.extra||""}</div>
+      <div class="row"><button>Run</button></div><pre>Ready.</pre>`;
+    const out = el.querySelector("pre");
+    const get = name => el.querySelector(`[data-f="${name}"]`).value.trim();
+    el.querySelector("button").addEventListener("click", () => c.run(get, out));
+    el.querySelectorAll("input").forEach(i =>
+      i.addEventListener("keydown", e => { if (e.key === "Enter") c.run(get, out); }));
+    root.appendChild(el);
+  }
+}
+
+async function loadMyIp() {
+  try {
+    const j = await (await fetch("/api/ip")).json();
+    document.getElementById("myip").textContent = j.ip || "unknown";
+    const bits = [];
+    if (j.version) bits.push("IPv" + j.version);
+    if (j.country) bits.push(j.country);
+    document.getElementById("myip-extra").textContent = bits.length ? "(" + bits.join(", ") + ")" : "";
+  } catch (e) {
+    document.getElementById("myip").textContent = "unavailable";
+  }
+}
+
+build();
+loadMyIp();
+</script>
+</body>
+</html>

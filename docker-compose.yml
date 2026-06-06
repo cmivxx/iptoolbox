@@ -1,0 +1,9 @@
+services:
+  app:
+    build: .
+    container_name: ip-pftx-app
+    restart: unless-stopped
+    ports:
+      - "8087:8000"
+    environment:
+      - FLASK_ENV=production
