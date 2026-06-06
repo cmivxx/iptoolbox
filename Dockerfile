@@ -9,6 +9,7 @@ COPY iptools.py .
 COPY app.py .
 COPY gunicorn_config.py .
 COPY templates/ ./templates/
+COPY static/ ./static/
 
 RUN useradd -r -u 1001 appuser && chown -R appuser /app
 USER appuser

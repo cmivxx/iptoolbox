@@ -12,15 +12,34 @@
   * { box-sizing: border-box; }
   body { margin: 0; background: var(--bg); color: var(--text);
     font: 15px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
-  header { padding: 28px 20px 8px; max-width: 1100px; margin: 0 auto; }
+  header { padding: 28px 20px 4px; max-width: 1100px; margin: 0 auto; }
   h1 { margin: 0 0 4px; font-size: 24px; }
   header p { margin: 0; color: var(--muted); }
-  .your-ip { margin-top: 14px; padding: 12px 16px; background: var(--panel);
-    border: 1px solid var(--border); border-radius: 8px; display: flex;
-    align-items: center; gap: 10px; flex-wrap: wrap; }
+
+  /* Marketing hero — drop an image at static/hero.png and it replaces the placeholder */
+  .hero { max-width: 1100px; margin: 8px auto 0; padding: 12px 20px;
+    display: flex; gap: 24px; align-items: center; }
+  .hero-text { flex: 1 1 56%; }
+  .hero-text h2 { font-size: 22px; margin: 0 0 10px; line-height: 1.25; }
+  .hero-text p { color: var(--muted); margin: 0; font-size: 15px; }
+  .hero-text .kicker { color: var(--accent); font-weight: 600; font-size: 13px;
+    letter-spacing: .04em; text-transform: uppercase; margin: 0 0 6px; }
+  .hero-art { flex: 1 1 44%; border-radius: 12px; overflow: hidden;
+    border: 1px solid var(--border); }
+  .hero-art img { width: 100%; height: 100%; object-fit: cover; display: none; }
+  .hero-art-ph { width: 100%; min-height: 180px; display: flex;
+    align-items: center; justify-content: center; color: var(--muted);
+    font-size: 13px; text-align: center; padding: 16px;
+    background: linear-gradient(135deg, #161b22 0%, #0d2a4d 100%); }
+
+  .your-ip { max-width: 1100px; margin: 6px auto 0; padding: 12px 16px;
+    background: var(--panel); border: 1px solid var(--border); border-radius: 8px;
+    display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .your-ip { width: calc(100% - 40px); }
   .your-ip code { font-size: 18px; color: var(--accent); }
-  main { max-width: 1100px; margin: 0 auto; padding: 16px 20px 60px;
-    display: grid; grid-template-columns: repeat(auto-fill, minmax(330px, 1fr)); gap: 16px; }
+
+  main { max-width: 1100px; margin: 16px auto 0; padding: 0 20px 60px;
+    display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; }
   .card { background: var(--panel); border: 1px solid var(--border);
     border-radius: 8px; padding: 16px; }
   .card h2 { margin: 0 0 4px; font-size: 16px; }
@@ -37,19 +56,44 @@
   .hint { color: var(--muted); font-size: 12px; }
   a { color: var(--accent); }
   footer { max-width: 1100px; margin: 0 auto; padding: 0 20px 40px; color: var(--muted); font-size: 13px; }
+
+  @media (max-width: 760px) {
+    main { grid-template-columns: 1fr; }
+    .hero { flex-direction: column; align-items: stretch; }
+  }
 </style>
 </head>
 <body>
 <header>
   <h1>IP &amp; DNS Toolbox</h1>
   <p>Network diagnostics — IP, DNS, and mail-auth tools.</p>
-  <div class="your-ip">
-    <span class="hint">Your public IP:</span>
-    <code id="myip">…</code>
-    <span class="hint" id="myip-extra"></span>
-    <span class="hint" style="margin-left:auto">Script use: <code>curl https://ip.pftx.us/plain</code></span>
-  </div>
 </header>
+
+<section class="hero">
+  <div class="hero-text">
+    <p class="kicker">One page. Every lookup.</p>
+    <h2>Inspect any domain or IP, all in one place.</h2>
+    <p>
+      A fast, no-nonsense set of network diagnostics. Find your public IP, dig
+      into DNS records, verify your email authentication (SPF, DKIM, DMARC),
+      trace mail routing, look up domain ownership, and crunch subnet math —
+      powered by trusted public resolvers. No sign-ups, no tracking, and every
+      tool is also a clean JSON API you can script against.
+    </p>
+  </div>
+  <div class="hero-art">
+    <!-- Add static/hero.png to the repo to show a marketing image here. -->
+    <img id="hero-img" src="/static/hero.png" alt="IP &amp; DNS Toolbox">
+    <div class="hero-art-ph" id="hero-art-ph">Marketing image goes here<br>(drop static/hero.png)</div>
+  </div>
+</section>
+
+<div class="your-ip">
+  <span class="hint">Your public IP:</span>
+  <code id="myip">…</code>
+  <span class="hint" id="myip-extra"></span>
+  <span class="hint" style="margin-left:auto">Script use: <code>curl https://ip.pftx.us/plain</code></span>
+</div>
 
 <main id="cards"></main>
 
@@ -73,42 +117,51 @@ async function call(url, outEl) {
 }
 
 const cards = [
-  { title: "DNS Lookup", desc: "Records for a domain via a chosen public resolver.",
+  { title: "DNS Lookup",
+    desc: "Query any record type (A, AAAA, MX, TXT, NS, SOA, CAA, SRV, CNAME) for a domain through your choice of public resolver.",
     fields: [{name:"name", ph:"example.com"}],
     extra: `<select id="dns-type">${RECORD_TYPES.map(t=>`<option>${t}</option>`).join("")}</select>
             <select id="dns-resolver"><option value="cloudflare">Cloudflare</option><option value="google">Google</option><option value="quad9">Quad9</option></select>`,
     run: (g,out)=>call(`/api/dns?name=${enc(g("name"))}&type=${enc(val("dns-type"))}&resolver=${enc(val("dns-resolver"))}`, out) },
 
-  { title: "DNS Propagation", desc: "Compare the same record across all resolvers.",
+  { title: "DNS Propagation",
+    desc: "Run the same lookup against Cloudflare, Google, and Quad9 at once to see whether a record has propagated consistently everywhere.",
     fields: [{name:"name", ph:"example.com"}],
     extra: `<select id="prop-type">${RECORD_TYPES.map(t=>`<option>${t}</option>`).join("")}</select>`,
     run: (g,out)=>call(`/api/dns/propagation?name=${enc(g("name"))}&type=${enc(val("prop-type"))}`, out) },
 
-  { title: "Reverse DNS (PTR)", desc: "Resolve an IP back to a hostname.",
+  { title: "Reverse DNS (PTR)",
+    desc: "Find the hostname an IPv4 or IPv6 address points back to via its PTR record.",
     fields: [{name:"ip", ph:"8.8.8.8"}],
     run: (g,out)=>call(`/api/dns/reverse?ip=${enc(g("ip"))}`, out) },
 
-  { title: "SPF Check", desc: "Validate SPF against RFC 7208 (10-lookup limit, qualifiers).",
+  { title: "SPF Check",
+    desc: "Fetch and validate a domain's SPF record against RFC 7208 — catches the 10-lookup limit, weak qualifiers, and deprecated mechanisms.",
     fields: [{name:"domain", ph:"example.com"}],
     run: (g,out)=>call(`/api/mail/spf?domain=${enc(g("domain"))}`, out) },
 
-  { title: "DMARC Check", desc: "Parse the _dmarc policy record.",
+  { title: "DMARC Check",
+    desc: "Read a domain's DMARC policy and flag missing enforcement (p=none) or absent aggregate-report addresses.",
     fields: [{name:"domain", ph:"example.com"}],
     run: (g,out)=>call(`/api/mail/dmarc?domain=${enc(g("domain"))}`, out) },
 
-  { title: "DKIM Check", desc: "Look up a DKIM key by selector.",
+  { title: "DKIM Check",
+    desc: "Look up a DKIM public key by selector to confirm a valid signing key is published (and not revoked).",
     fields: [{name:"domain", ph:"example.com"},{name:"selector", ph:"google"}],
     run: (g,out)=>call(`/api/mail/dkim?domain=${enc(g("domain"))}&selector=${enc(g("selector"))}`, out) },
 
-  { title: "MX Analyzer", desc: "MX records by priority + address resolution.",
+  { title: "MX Analyzer",
+    desc: "List a domain's mail servers by priority and resolve each to its A/AAAA addresses, flagging common misconfigurations.",
     fields: [{name:"domain", ph:"example.com"}],
     run: (g,out)=>call(`/api/mail/mx?domain=${enc(g("domain"))}`, out) },
 
-  { title: "WHOIS / RDAP", desc: "Registration data for a domain or IP.",
+  { title: "WHOIS / RDAP",
+    desc: "Pull registration details — registrar, key dates, status, and nameservers — for a domain or IP using the modern RDAP protocol.",
     fields: [{name:"query", ph:"example.com or 8.8.8.8"}],
     run: (g,out)=>call(`/api/whois?query=${enc(g("query"))}`, out) },
 
-  { title: "Subnet Calculator", desc: "CIDR math — network, broadcast, host range.",
+  { title: "Subnet Calculator",
+    desc: "Break down any CIDR block: network and broadcast addresses, netmask, wildcard mask, and the usable host range.",
     fields: [{name:"cidr", ph:"192.168.1.0/24"}],
     run: (g,out)=>call(`/api/subnet?cidr=${enc(g("cidr"))}`, out) },
 ];
@@ -146,6 +199,14 @@ async function loadMyIp() {
     document.getElementById("myip").textContent = "unavailable";
   }
 }
+
+// Show the marketing image only if static/hero.png actually loads; otherwise
+// keep the placeholder.
+(function () {
+  const img = document.getElementById("hero-img");
+  const ph = document.getElementById("hero-art-ph");
+  img.addEventListener("load", () => { img.style.display = "block"; ph.style.display = "none"; });
+})();
 
 build();
 loadMyIp();
